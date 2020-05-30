@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, EditUserProfile
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
@@ -114,6 +114,7 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle logout of user."""
+    do_logout()
     flash("You're now logged out. See you soon!", "success")
     return redirect ('/login')
 
@@ -135,7 +136,6 @@ def list_users():
     else:
         users = User.query.filter(User.username.like(f"%{search}%")).all()
 
-    import pdb; pdb.set_trace()
 
     return render_template('users/index.html', users=users)
 
@@ -214,8 +214,30 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+ 
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
 
-    # IMPLEMENT THIS
+    form = EditUserProfile(obj=g.user)
+    if form.validate_on_submit():
+        user = User.authenticate(g.user.username,
+                                 form.password.data)
+        if user:
+            user.username = form.username.data,
+            user.email = form.email.data,
+            user.image_url = form.image_url.data or User.image_url.default.arg
+            user.header_image_url = form.header_image_url.data or User.header_image_url.default.arg,
+            user.bio = form.bio.data,
+            db.session.commit()
+            return render_template('users/detail.html', user=user)
+        else: 
+            flash("Password entered was invalid", "danger")
+            return redirect('/')
+    else:
+        return render_template('users/edit.html', form=form, user_id = g.user.id)
+
+ 
 
 
 @app.route('/users/delete', methods=["POST"])
