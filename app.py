@@ -17,7 +17,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
     os.environ.get('DATABASE_URL', 'postgres:///warbler'))
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ECHO'] = False
+app.config['SQLALCHEMY_ECHO'] = True
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
 toolbar = DebugToolbarExtension(app)
@@ -32,6 +32,14 @@ connect_db(app)
 @app.before_request
 def add_user_to_g():
     """If we're logged in, add curr user to Flask global."""
+
+    # @app.before_request is a decorator that causes some logic to run before the route logic is executed.
+    # In this case the 'add_user_to_g' method will populate the g.user (global flask object 'g') with the value
+    # of the session key..if the CURR_USER_KEY is present then the user is logged in otherwise the user is not currently logged in. 
+
+    # g is an object provided by Flask. It is a global namespace for holding any data you want during a single app context.
+    #  For example, a before_request handler could set g.user, which will be accessible to the route and other functions.
+    # An app context lasts for one request / response cycle, g is not appropriate for storing data across requests.
 
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
@@ -316,13 +324,17 @@ def homepage():
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
+ 
     if g.user:
+        following_ids = [f.id for f in g.user.following] + [g.user.id]
+        import pdb; pdb.set_trace()
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
+
 
         return render_template('home.html', messages=messages)
 
