@@ -5,7 +5,7 @@ from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm, EditUserProfile
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -165,6 +165,7 @@ def users_show(user_id):
     return render_template('users/show.html', user=user, messages=messages)
 
 
+
 @app.route('/users/<int:user_id>/following')
 def show_following(user_id):
     """Show list of people this user is following."""
@@ -263,7 +264,33 @@ def delete_user():
 
     return redirect("/signup")
 
+@app.route('/users/add_like/<int:message_id>', methods=["POST"])
+def add_like_message(message_id):
+    # If user is logged in: 
+    #   If user_id & message_id is not in liked table (i.e., not already marked as liked)
+        #   Add entry into Like_table
+        #   Add flash message to indicate "Message was liked"
 
+    # Else: 
+    #   remove entry from the Like table
+
+    # Notes:  - Add logic to '/' template to reflect if message has been liked
+    #         - In profile view run query to get count total of likes and pass that value to profile template view for display
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    else: 
+        like = Likes.query.filter_by(user_id = g.user.id, message_id = message_id).first() 
+        if like == None:
+            print ('The value returnded for Likes search whas none')
+            like = Likes(user_id=g.user.id, message_id = message_id);
+            db.session.add(like)
+            db.session.commit()
+        else: # Record was unliked so remove entry in Likes table
+            db.session.delete(like)
+            db.session.commit()
+    return redirect('/')
 ##############################################################################
 # Messages routes:
 
@@ -327,16 +354,15 @@ def homepage():
  
     if g.user:
         following_ids = [f.id for f in g.user.following] + [g.user.id]
-        import pdb; pdb.set_trace()
         messages = (Message
                     .query
                     .filter(Message.user_id.in_(following_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
+        liked_msg_ids = [msg.id for msg in g.user.likes]
 
-
-        return render_template('home.html', messages=messages)
+        return render_template('home.html', messages=messages, likes = liked_msg_ids)
 
     else:
         return render_template('home-anon.html')
